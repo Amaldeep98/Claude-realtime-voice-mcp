@@ -59,28 +59,82 @@ or a config file, no restart required.
 - Working microphone and speakers
 - `ffmpeg` (optional, only needed for MP3/FLAC handling)
 
-## Setup
+## Setting up on a new machine, from scratch
 
-```bash
-./scripts/setup.sh
-```
+1. **Clone this repo** somewhere permanent (its path gets baked into config
+   below, so pick a final location, e.g. `~/tools/claude-voice-mcp`):
 
-This installs `uv` if missing, syncs the environment, and pre-downloads the
-default models (~2-3GB): Kokoro-82M (TTS) and Whisper large-v3-turbo (STT).
+   ```bash
+   git clone git@github.com:Amaldeep98/Claude-realtime-voice-mcp.git
+   cd Claude-realtime-voice-mcp
+   ```
 
-The Stop hook needs to be registered once in `.claude/settings.json`:
+2. **Run setup**:
 
-```json
-{
-  "hooks": {
-    "Stop": [
-      { "type": "command", "command": "uv --project /path/to/claude-voice-mcp run python hooks/speak_on_stop.py", "timeout": 30 }
-    ]
-  }
-}
-```
+   ```bash
+   ./scripts/setup.sh
+   ```
 
-## Using it in another project
+   This installs `uv` if missing (via `~/.local/bin`), pins Python 3.12 (spaCy,
+   one of Kokoro's text-processing dependencies, doesn't yet have wheels for
+   newer Pythons), syncs the environment, and pre-downloads the default models
+   (~2-3GB): Kokoro-82M (TTS) and Whisper large-v3-turbo (STT).
+
+3. **Register the Stop hook** (this is what makes auto-speak and hands-free
+   work) by adding this to `.claude/settings.json` — replace both path
+   occurrences with your absolute clone path and `uv`'s absolute path
+   (`which uv`):
+
+   ```json
+   {
+     "hooks": {
+       "Stop": [
+         {
+           "hooks": [
+             {
+               "type": "command",
+               "command": "/absolute/path/to/uv --project /absolute/path/to/claude-voice-mcp run python hooks/speak_on_stop.py",
+               "timeout": 120
+             }
+           ]
+         }
+       ]
+     }
+   }
+   ```
+
+   Use the **absolute path to `uv`** (not just `uv`) since hooks don't
+   necessarily inherit your shell's `PATH`. The 120s timeout matters: the hook
+   speaks *and then listens* in hands-free mode, which can legitimately take
+   over a minute — a shorter timeout will silently kill it mid-listen with no
+   error shown (this bit us during development; see git history if curious).
+
+4. If `.claude/settings.json` didn't already exist in that project when your
+   Claude Code session started, run `/hooks` once (or restart) so the new
+   file gets picked up.
+
+5. Register the MCP server so Claude Code can see the `listen`/`speak`/etc.
+   tools — see **Scope** below for project-only vs. everywhere.
+
+## Scope: project-only vs. available everywhere
+
+Three independent pieces, each defaulting to *this project only*, each with
+an "everywhere" option:
+
+| Piece | Default (project-only) | Make it global |
+|---|---|---|
+| **Voice settings** (voice, speed, auto_speak, hands_free, ...) | Already global: `~/.claude-voice-mcp/config.json` | N/A — already global. Add a `.voice-mcp.json` in a specific project's directory if you want *that project* to override something. |
+| **MCP server** (the tools themselves) | This repo's `.mcp.json` — only auto-discovered when Claude Code's cwd is this directory | `claude mcp add voice --scope user -- /absolute/path/to/uv --directory /absolute/path/to/claude-voice-mcp run server.py` — registers it for every project for your user |
+| **Slash commands** (`/talk`, `/voice`, `/talkback`) | This repo's `.claude/commands/*.md` — only available when working in this directory | Copy the three `.md` files into `~/.claude/commands/` instead (create the directory if it doesn't exist) |
+| **Stop hook** (auto-speak / hands-free) | This repo's `.claude/settings.json` | Put the same `hooks.Stop` entry in `~/.claude/settings.json` instead |
+
+If you want the whole thing available in every project without any
+per-project setup, do the "global" option for all three of MCP server, slash
+commands, and Stop hook. If you'd rather opt in per-project, keep the default
+and just add `.mcp.json` + `.claude/commands/` + `.claude/settings.json`
+entries (matching this repo's) to each project you want it in.
+
+## Using it in another project (project-scoped, the default)
 
 Add to that project's `.mcp.json`:
 
@@ -96,7 +150,8 @@ Add to that project's `.mcp.json`:
 }
 ```
 
-Then say "listen to me", or use `/talk` and `/voice`.
+Then say "listen to me", or use `/talk` and `/voice` (copy those command
+files in too, or use the global option above).
 
 ## Configuration
 
@@ -122,9 +177,14 @@ voice_mcp/
   audio_io.py       # mic capture + VAD, playback, cue tones, macOS notifications
   sanitize.py       # strip markdown/code/urls/paths before any TTS call
   summarizer.py     # turn a raw assistant turn into a short spoken summary
+  stt_guard.py      # detect/trim Whisper hallucination (repeat loops) on noise/silence
   stt/              # whisper_backend.py (default), voxtral_backend.py (opt-in)
   tts/              # kokoro_backend.py (default), elevenlabs_backend.py (optional)
-  tools.py          # tool implementations shared by server.py and the hook
-server.py           # FastMCP entrypoint: listen, speak, stop_speaking, list_voices, voice_config
-hooks/speak_on_stop.py  # Stop hook: guaranteed auto-speak, independent of the MCP server
+  tools.py          # tool implementations shared by server.py, the daemon, and the hook's fallback
+  daemon.py         # background Unix-socket server (in server.py's process) keeping models warm
+  ipc_client.py     # lightweight client the hook uses to reach the daemon, no heavy imports
+server.py           # FastMCP entrypoint: listen, speak, stop_speaking, list_voices, voice_config;
+                     # also starts the daemon in a background thread
+hooks/speak_on_stop.py  # Stop hook: guaranteed auto-speak + hands-free, independent of the MCP server
+                         # (talks to the daemon for speed, falls back to loading models directly)
 ```
