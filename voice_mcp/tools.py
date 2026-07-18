@@ -18,7 +18,7 @@ def listen(duration: float | None = None) -> str:
         if duration:
             audio = audio_io.record_fixed(duration, on_start=on_start)
         else:
-            audio = audio_io.record_until_silence(silence_ms=cfg["vad_silence_ms"], on_start=on_start)
+            audio, _ = audio_io.record_until_silence(silence_ms=cfg["vad_silence_ms"], on_start=on_start)
 
     if cfg["audio_cues"]:
         audio_io.cue_listening_stop()

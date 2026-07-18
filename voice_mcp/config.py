@@ -34,6 +34,12 @@ DEFAULTS: dict[str, Any] = {
     "notifications": True,
     # spoken-summary length cap for "brief" verbosity
     "brief_max_chars": 320,
+    # when true, the Stop hook listens again after speaking so a voice
+    # conversation continues without retyping /talk each turn
+    "hands_free": False,
+    # how long the hands-free re-listen waits for you to start talking
+    # before it gives up and turns itself off
+    "hands_free_idle_seconds": 45,
 }
 
 VALID_KEYS = set(DEFAULTS.keys())

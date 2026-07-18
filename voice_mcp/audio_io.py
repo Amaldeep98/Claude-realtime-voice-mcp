@@ -39,8 +39,14 @@ def _is_speech(frame: np.ndarray, vad: "webrtcvad.Vad | None") -> bool:
 
 def record_until_silence(
     *, max_seconds: float = 30.0, silence_ms: int = 1500, on_start=None
-) -> np.ndarray:
-    """Record from the mic until `silence_ms` of trailing silence is seen."""
+) -> tuple[np.ndarray, bool]:
+    """Record from the mic until `silence_ms` of trailing silence is seen.
+
+    Returns (audio, speech_detected). `speech_detected` is False if nothing
+    that looked like speech happened before `max_seconds` elapsed (e.g. no one
+    started talking) -- distinct from "recorded silence", since STT can
+    hallucinate text out of pure silence/noise.
+    """
     vad = webrtcvad.Vad(3) if webrtcvad is not None else None
     silence_frames_needed = max(1, silence_ms // FRAME_MS)
     frames: list[np.ndarray] = []
@@ -66,7 +72,8 @@ def record_until_silence(
                 if silence_run >= silence_frames_needed:
                     break
 
-    return np.concatenate(frames) if frames else np.zeros(0, dtype=np.int16)
+    audio = np.concatenate(frames) if frames else np.zeros(0, dtype=np.int16)
+    return audio, speech_seen
 
 
 def record_fixed(duration_seconds: float, *, on_start=None) -> np.ndarray:
