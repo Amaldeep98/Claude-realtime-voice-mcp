@@ -28,8 +28,9 @@ or a config file, no restart required.
   or run `/talk off` to end it explicitly -- handy after it's auto-disarmed
   and you want to re-arm it without checking current state. `/talk <seconds>`
   does a one-shot timed recording without touching hands-free at all.
-- **`/talkback`** — toggles spoken replies (`auto_speak`) on/off independent of
-  `/talk`'s listening toggle, e.g. for using native dictation as input with
+- **`/talkback on` / `/talkback off`** (bare `/talkback` toggles) — controls
+  spoken replies (`auto_speak`) independent of `/talk`'s listening toggle,
+  e.g. for using native dictation as input with
   only our TTS for output.
 - **`listen()`** — mic capture, gated by voice-activity detection (webrtcvad
   + energy fallback), stops after a configurable trailing-silence window
