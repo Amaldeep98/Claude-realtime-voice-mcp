@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "voice": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["--directory", "/Users/amaldeep/Documents/Amal/claude-voice-mcp", "run", "server.py"]
+    }
+  }
+}

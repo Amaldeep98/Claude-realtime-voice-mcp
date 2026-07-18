@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/amaldeep/.local/bin/uv --project /Users/amaldeep/Documents/Amal/claude-voice-mcp run python hooks/speak_on_stop.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

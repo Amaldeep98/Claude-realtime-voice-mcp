@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+*.wav
+.voice-mcp-lock
+.DS_Store
