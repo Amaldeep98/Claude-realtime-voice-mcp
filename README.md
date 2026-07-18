@@ -20,12 +20,14 @@ or a config file, no restart required.
 
 ## Features
 
-- **Hands-free conversation** — `/talk` toggles `hands_free` mode: first use
-  arms it and starts listening; after Claude speaks, the Stop hook listens
-  again automatically and feeds what you say back in as the next turn (via
-  the hook's `decision: "block"` output), so you don't retype `/talk` every
-  time. Say "stop listening", go quiet for `hands_free_idle_seconds` (default
-  90s), or run `/talk` again to end it.
+- **Hands-free conversation** — `/talk on` (or just `/talk`) arms `hands_free`
+  mode and starts listening; after Claude speaks, the Stop hook listens again
+  automatically and feeds what you say back in as the next turn (via the
+  hook's `decision: "block"` output), so you don't retype `/talk` every time.
+  Say "stop listening", go quiet for `hands_free_idle_seconds` (default 90s),
+  or run `/talk off` to end it explicitly -- handy after it's auto-disarmed
+  and you want to re-arm it without checking current state. `/talk <seconds>`
+  does a one-shot timed recording without touching hands-free at all.
 - **`/talkback`** — toggles spoken replies (`auto_speak`) on/off independent of
   `/talk`'s listening toggle, e.g. for using native dictation as input with
   only our TTS for output.
