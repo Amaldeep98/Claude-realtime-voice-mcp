@@ -3,15 +3,18 @@
 Registers listen/speak/stop_speaking/list_voices/voice_config as MCP tools.
 Automatic "Claude speaks its responses" is handled separately by
 hooks/speak_on_stop.py (a Claude Code Stop hook), not by this server --
-see that file for why.
+see that file for why. This process also runs a background voice daemon
+(voice_mcp/daemon.py) so the Stop hook can reuse already-warm models instead
+of reloading them from scratch on every turn.
 """
 from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from voice_mcp import tools
+from voice_mcp import daemon, tools
 
 mcp = FastMCP("claude-voice-mcp")
+daemon.start_background()
 
 
 @mcp.tool()

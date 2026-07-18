@@ -59,6 +59,32 @@ def stop_speaking() -> str:
     return "Stopped."
 
 
+def hands_free_listen(idle_seconds: float | None = None) -> dict:
+    """Listen for one utterance during hands-free mode. Shared by the daemon
+    (fast path, warm models) and the Stop hook's direct-import fallback."""
+    cfg = config.load()
+    max_seconds = idle_seconds if idle_seconds is not None else cfg["hands_free_idle_seconds"]
+
+    def on_start():
+        if cfg["audio_cues"]:
+            audio_io.cue_listening_start()
+        if cfg["notifications"]:
+            audio_io.notify("Voice MCP", "Listening...")
+
+    with config.ListenLock():
+        audio, speech_detected = audio_io.record_until_silence(
+            max_seconds=max_seconds, silence_ms=cfg["vad_silence_ms"], on_start=on_start
+        )
+    if cfg["audio_cues"]:
+        audio_io.cue_listening_stop()
+
+    if not speech_detected or audio.size == 0:
+        return {"text": "", "speech_detected": speech_detected}
+
+    text = stt.transcribe(audio, audio_io.SAMPLE_RATE, cfg["stt_backend"], cfg["language"])
+    return {"text": text.strip(), "speech_detected": True}
+
+
 def list_voices(language: str | None = None) -> list[dict]:
     return tts.list_voices(language)
 

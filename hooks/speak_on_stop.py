@@ -16,6 +16,14 @@ the conversation with that as the next input -- no retyping /talk needed. If
 you say a stop phrase, or stay quiet past `hands_free_idle_seconds`, hands-free
 turns itself off and the turn ends normally.
 
+Performance note: this script is spawned fresh by Claude Code on every single
+turn. Talking to the voice daemon (voice_mcp/daemon.py, a background thread in
+the long-lived MCP server process) means we reuse already-warm Kokoro/Whisper
+models instead of reloading them from scratch every time -- that reload was
+taking 5+ seconds on its own. voice_mcp.audio_io/stt/tts (which pull in
+mlx/mlx_audio/transformers) are only imported here as a fallback if the
+daemon isn't reachable, so the common case stays fast.
+
 Never blocks the turn on its own account: speaking/listening failures are
 swallowed so a broken mic or model never surfaces as a stuck conversation.
 """
@@ -27,7 +35,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from voice_mcp import audio_io, config, stt, summarizer, tts  # noqa: E402
+from voice_mcp import config, ipc_client, summarizer  # noqa: E402
 
 STOP_PHRASES = {
     "stop listening",
@@ -44,6 +52,12 @@ STOP_PHRASES = {
 
 
 def _speak(cfg: dict, text: str) -> None:
+    response = ipc_client.call("speak", text=text, voice=cfg["voice"], speed=cfg["speed"], lang=cfg["language"])
+    if response is not None and response.get("ok"):
+        return
+
+    from voice_mcp import audio_io, tts  # heavy fallback: daemon unreachable
+
     audio, sample_rate, _ = tts.synthesize(
         text,
         backend=cfg["tts_backend"],
@@ -59,6 +73,11 @@ def _speak(cfg: dict, text: str) -> None:
 
 def _listen_once(cfg: dict) -> tuple[str, bool]:
     """Returns (transcribed_text, speech_detected)."""
+    response = ipc_client.call("hands_free_listen", idle_seconds=cfg["hands_free_idle_seconds"])
+    if response is not None and response.get("ok"):
+        return response.get("text", ""), response.get("speech_detected", False)
+
+    from voice_mcp import audio_io, stt  # heavy fallback: daemon unreachable
 
     def on_start():
         if cfg["audio_cues"]:
