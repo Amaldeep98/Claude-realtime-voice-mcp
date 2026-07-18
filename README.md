@@ -20,13 +20,19 @@ or a config file, no restart required.
 
 ## Features
 
-- **Hands-free conversation** — `/talk` arms `hands_free` mode: after Claude
-  speaks, the Stop hook listens again automatically and feeds what you say
-  back in as the next turn (via the hook's `decision: "block"` output), so you
-  don't retype `/talk` every time. Say "stop listening" (or go quiet for
-  `hands_free_idle_seconds`, default 45s) to end it.
+- **Hands-free conversation** — `/talk` toggles `hands_free` mode: first use
+  arms it and starts listening; after Claude speaks, the Stop hook listens
+  again automatically and feeds what you say back in as the next turn (via
+  the hook's `decision: "block"` output), so you don't retype `/talk` every
+  time. Say "stop listening", go quiet for `hands_free_idle_seconds` (default
+  90s), or run `/talk` again to end it.
+- **`/talkback`** — toggles spoken replies (`auto_speak`) on/off independent of
+  `/talk`'s listening toggle, e.g. for using native dictation as input with
+  only our TTS for output.
 - **`listen()`** — mic capture, gated by voice-activity detection (webrtcvad
-  + energy fallback), stops after a configurable silence window.
+  + energy fallback), stops after a configurable trailing-silence window
+  (`vad_silence_ms`, default 5s, generous so mid-sentence pauses don't cut
+  you off).
 - **`speak()`** — local TTS via Kokoro-82M: 54 voices across 9 languages
   (American & British English, Spanish, French, Hindi, Italian, Japanese,
   Brazilian Portuguese, Mandarin).
