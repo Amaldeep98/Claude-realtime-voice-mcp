@@ -31,11 +31,24 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from voice_mcp import config, ipc_client, summarizer  # noqa: E402
+
+DEBUG_LOG_PATH = config.USER_CONFIG_DIR / "hook_debug.log"
+
+
+def _log(msg: str) -> None:
+    try:
+        DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with DEBUG_LOG_PATH.open("a") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+    except Exception:
+        pass
+
 
 STOP_PHRASES = {
     "stop listening",
@@ -74,8 +87,11 @@ def _speak(cfg: dict, text: str) -> None:
 def _listen_once(cfg: dict) -> tuple[str, bool]:
     """Returns (transcribed_text, speech_detected)."""
     response = ipc_client.call("hands_free_listen", idle_seconds=cfg["hands_free_idle_seconds"])
+    _log(f"hands_free_listen daemon response: {response!r}")
     if response is not None and response.get("ok"):
         return response.get("text", ""), response.get("speech_detected", False)
+    if response is not None and not response.get("ok"):
+        _log(f"daemon returned an error, falling back to direct recording: {response.get('error')!r}")
 
     from voice_mcp import audio_io, stt  # heavy fallback: daemon unreachable
 
@@ -93,21 +109,25 @@ def _listen_once(cfg: dict) -> tuple[str, bool]:
         )
     if cfg["audio_cues"]:
         audio_io.cue_listening_stop()
+    _log(f"fallback recording: speech_detected={speech_detected} audio_samples={audio.size}")
 
     if not speech_detected or audio.size == 0:
         return "", speech_detected
 
     text = stt.transcribe(audio, audio_io.SAMPLE_RATE, cfg["stt_backend"], cfg["language"])
+    _log(f"fallback transcription: {text!r}")
     return text.strip(), speech_detected
 
 
 def main() -> None:
     try:
         payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as exc:
+        _log(f"failed to parse stdin JSON: {exc}")
         return
 
     cfg = config.load()
+    _log(f"--- stop hook fired: auto_speak={cfg['auto_speak']} hands_free={cfg['hands_free']} ---")
 
     if cfg["auto_speak"] and cfg["auto_speak_verbosity"] != "off" and not config.is_listen_locked():
         raw_text = payload.get("last_assistant_message") or ""
@@ -117,33 +137,42 @@ def main() -> None:
         if text:
             try:
                 _speak(cfg, text)
-            except Exception:
-                pass  # auto-speak failures must never surface as a broken turn
+                _log(f"spoke: {text!r}")
+            except Exception as exc:
+                _log(f"speak failed: {exc}")
 
     if not cfg["hands_free"] or config.is_listen_locked():
+        _log("hands_free off or listen-locked, done")
         return
 
     try:
         heard, speech_detected = _listen_once(cfg)
-    except Exception:
+    except Exception as exc:
+        _log(f"listen failed: {exc}, disarming hands_free")
         config.set_value("hands_free", False)
         return
 
+    _log(f"listen result: heard={heard!r} speech_detected={speech_detected}")
+
     if not speech_detected:
         config.set_value("hands_free", False)  # went quiet -- end hands-free gracefully
+        _log("no speech detected within idle window, disarmed hands_free")
         return
 
     if not heard:
+        _log("speech detected but transcription was empty, leaving hands_free on")
         return  # speech detected but nothing transcribed; don't tear down the session for a blip
 
     if heard.lower().strip(" .!?") in STOP_PHRASES:
         config.set_value("hands_free", False)
+        _log("stop phrase matched, disarmed hands_free")
         try:
             _speak(cfg, "Voice mode off.")
         except Exception:
             pass
         return
 
+    _log(f"emitting decision:block with reason={heard!r}")
     print(json.dumps({"decision": "block", "reason": heard}))
 
 
