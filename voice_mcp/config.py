@@ -29,7 +29,10 @@ DEFAULTS: dict[str, Any] = {
     # whisper | voxtral
     "stt_backend": "whisper",
     "language": "a",
-    "vad_silence_ms": 1500,
+    # trailing silence needed to end a recording, once you've started
+    # talking -- generous by default so a mid-sentence pause doesn't cut
+    # you off early
+    "vad_silence_ms": 5000,
     "audio_cues": True,
     "notifications": True,
     # spoken-summary length cap for "brief" verbosity
