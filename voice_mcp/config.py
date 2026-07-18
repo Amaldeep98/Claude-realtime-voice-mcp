@@ -39,7 +39,7 @@ DEFAULTS: dict[str, Any] = {
     "hands_free": False,
     # how long the hands-free re-listen waits for you to start talking
     # before it gives up and turns itself off
-    "hands_free_idle_seconds": 45,
+    "hands_free_idle_seconds": 90,
 }
 
 VALID_KEYS = set(DEFAULTS.keys())
