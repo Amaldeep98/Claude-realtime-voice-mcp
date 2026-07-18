@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from voice_mcp import config, ipc_client, summarizer  # noqa: E402
-from voice_mcp.stt_guard import looks_like_hallucinated_repeat  # noqa: E402
+from voice_mcp.stt_guard import looks_like_hallucinated_repeat, strip_hallucinated_tail  # noqa: E402
 
 DEBUG_LOG_PATH = config.USER_CONFIG_DIR / "hook_debug.log"
 
@@ -164,7 +164,12 @@ def main() -> None:
         _log("speech detected but transcription was empty, leaving hands_free on")
         return  # speech detected but nothing transcribed; don't tear down the session for a blip
 
-    if looks_like_hallucinated_repeat(heard):
+    trimmed = strip_hallucinated_tail(heard)
+    if trimmed != heard:
+        _log(f"trimmed a hallucinated repeat tail: {heard!r} -> {trimmed!r}")
+        heard = trimmed
+
+    if not heard or looks_like_hallucinated_repeat(heard):
         _log(f"discarding likely STT hallucination (repetitive garbage), leaving hands_free on: {heard!r}")
         return  # ambient noise mis-flagged as speech; don't feed garbage into the conversation
 
