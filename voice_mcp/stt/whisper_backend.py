@@ -34,6 +34,18 @@ def _load():
     return _model
 
 
+def _build_initial_prompt() -> str | None:
+    from .. import config
+
+    words = config.load().get("stt_vocabulary") or []
+    if not words:
+        return None
+    # Whisper doesn't take a vocabulary list directly -- the standard trick
+    # is priming it with a short prompt that uses the words naturally, which
+    # biases decoding toward them (see /vocab in README for how this is set).
+    return "Vocabulary: " + ", ".join(words) + "."
+
+
 def transcribe(audio: np.ndarray, sample_rate: int, language: str | None = None) -> str:
     model = _load()
     whisper_language = _LANGUAGE_MAP.get(language, language)
@@ -42,6 +54,7 @@ def transcribe(audio: np.ndarray, sample_rate: int, language: str | None = None)
         result = model.generate(
             tmp.name,
             language=whisper_language,
+            initial_prompt=_build_initial_prompt(),
             # Whisper's own defense against hallucinating text during
             # silence/noise segments -- off by default, worth having on here.
             hallucination_silence_threshold=2.0,

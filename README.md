@@ -54,6 +54,9 @@ when you want your hands off the keyboard.
 | `/talkback brief` | Speaks a short summary only, truncated to `brief_max_chars` (default, 320 chars) |
 | `/voice` | Lists all 54 voices, grouped by language |
 | `/voice <id>` | Switches to that voice (e.g. `/voice af_bella`) |
+| `/vocab add <word>` | Teach Whisper a word/name it tends to mishear (app names, jargon, rare terms) |
+| `/vocab remove <word>` | Remove a word from the taught vocabulary |
+| `/vocab` / `/vocab list` | Show the current taught vocabulary |
 
 Say "stop listening" any time to end hands-free mode by voice instead of typing `/talk off`.
 
@@ -81,6 +84,11 @@ retyping anything.
 - **`voice_config()`** — get/set any setting live from Claude's console (see
   [Configuration](#configuration)), persisted to
   `~/.claude-voice-mcp/config.json` (or a project-local `.voice-mcp.json`).
+- **`vocabulary()`** / **`/vocab`** — teach Whisper words it mishears (app
+  names, jargon, rare terms). Words you add are fed to it as an
+  `initial_prompt` on every transcription, a standard Whisper technique for
+  biasing recognition toward specific vocabulary — not a guarantee, but it
+  measurably helps with names and jargon it otherwise guesses wrong.
 - **Hallucination guard** (`stt_guard.py`) — Whisper occasionally hallucinates
   a repeating phrase from silence/noise (a known failure mode). Detected and
   trimmed automatically before it reaches the conversation.
@@ -211,6 +219,7 @@ value="...")`) — no restart required.
 | `speed` | `1.0` | Playback speed multiplier |
 | `stt_backend` | `"whisper"` | `whisper` (default) or `voxtral` (lower-latency streaming, heavier download) |
 | `language` | `"a"` | Language code (`a`=American English, `b`=British, `e`=Spanish, `f`=French, `h`=Hindi, `i`=Italian, `j`=Japanese, `p`=Brazilian Portuguese, `z`=Mandarin) |
+| `stt_vocabulary` | `[]` | Custom words/names Whisper is biased toward (see `/vocab`) — managed via `vocabulary()`/`/vocab`, not usually set directly |
 | `audio_cues` | `true` | Chime when listening starts/stops |
 | `notifications` | `true` | macOS banner notifications for listening/speaking state |
 

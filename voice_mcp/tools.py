@@ -98,3 +98,19 @@ def voice_config(action: str, key: str | None = None, value: Any = None, project
             raise ValueError("voice_config(action='set') requires a key")
         return config.set_value(key, value, project_local=project_local)
     raise ValueError("action must be 'get' or 'set'")
+
+
+def vocabulary(action: str, word: str | None = None, project_local: bool = False) -> dict:
+    """Teach the STT model words it tends to mishear (app names, jargon,
+    rare terms) -- fed to Whisper as a biasing prompt on every transcription."""
+    if action == "list":
+        return {"stt_vocabulary": config.load().get("stt_vocabulary", [])}
+    if action == "add":
+        if not word:
+            raise ValueError("vocabulary(action='add') requires a word")
+        return {"stt_vocabulary": config.add_vocabulary_word(word, project_local=project_local)}
+    if action == "remove":
+        if not word:
+            raise ValueError("vocabulary(action='remove') requires a word")
+        return {"stt_vocabulary": config.remove_vocabulary_word(word, project_local=project_local)}
+    raise ValueError("action must be 'list', 'add', or 'remove'")

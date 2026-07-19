@@ -65,6 +65,20 @@ def voice_config(action: str, key: str | None = None, value: str | None = None, 
     return tools.voice_config(action, key, value, project_local)
 
 
+@mcp.tool()
+def vocabulary(action: str, word: str | None = None, project_local: bool = False) -> dict:
+    """Teach the STT model words/names it tends to mishear (app names,
+    jargon, rare terms), fed to Whisper as a biasing prompt on every
+    transcription.
+
+    action="add" (requires word), action="remove" (requires word), or
+    action="list" to see the current vocabulary. Pass project_local=true to
+    persist to .voice-mcp.json in the current project instead of the
+    user-level config.
+    """
+    return tools.vocabulary(action, word, project_local)
+
+
 def main() -> None:
     mcp.run()
 

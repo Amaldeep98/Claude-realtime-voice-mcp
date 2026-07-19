@@ -43,6 +43,9 @@ DEFAULTS: dict[str, Any] = {
     # how long the hands-free re-listen waits for you to start talking
     # before it gives up and turns itself off
     "hands_free_idle_seconds": 90,
+    # custom words/names/jargon (app names, rare terms) Whisper tends to
+    # mishear -- fed to it as an initial_prompt to bias recognition
+    "stt_vocabulary": [],
 }
 
 VALID_KEYS = set(DEFAULTS.keys())
@@ -94,6 +97,8 @@ def _coerce(key: str, value: Any) -> Any:
     default = DEFAULTS[key]
     if isinstance(default, bool):
         return value.strip().lower() in {"1", "true", "yes", "on"}
+    if isinstance(default, list):
+        return [item.strip() for item in value.split(",") if item.strip()]
     if isinstance(default, float):
         return float(value)
     if isinstance(default, int):
@@ -101,6 +106,26 @@ def _coerce(key: str, value: Any) -> Any:
     if value.lower() == "null" and default is None:
         return None
     return value
+
+
+def add_vocabulary_word(word: str, *, project_local: bool = False) -> list[str]:
+    cfg = load()
+    words = list(cfg.get("stt_vocabulary") or [])
+    normalized = word.strip()
+    if normalized and normalized.lower() not in {w.lower() for w in words}:
+        words.append(normalized)
+    cfg["stt_vocabulary"] = words
+    save(cfg, project_local=project_local)
+    return words
+
+
+def remove_vocabulary_word(word: str, *, project_local: bool = False) -> list[str]:
+    cfg = load()
+    normalized = word.strip().lower()
+    words = [w for w in (cfg.get("stt_vocabulary") or []) if w.lower() != normalized]
+    cfg["stt_vocabulary"] = words
+    save(cfg, project_local=project_local)
+    return words
 
 
 def is_listen_locked() -> bool:
