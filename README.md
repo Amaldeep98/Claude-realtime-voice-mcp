@@ -63,6 +63,10 @@ independent toggles, covered in **Features** below.
   spoken replies (`auto_speak`) independent of `/talk`'s listening toggle,
   e.g. for using native dictation as input with
   only our TTS for output.
+- **`/talkback full` / `/talkback brief`** — how much of each reply gets
+  spoken: `brief` (default) speaks a short summary truncated to
+  `brief_max_chars` (320 by default); `full` speaks the whole reply. If
+  replies are getting cut off mid-thought, switch to `full`.
 - **`listen()`** — mic capture, gated by voice-activity detection (webrtcvad
   + energy fallback), stops after a configurable trailing-silence window
   (`vad_silence_ms`, default 5s, generous so mid-sentence pauses don't cut
