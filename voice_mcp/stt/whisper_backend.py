@@ -47,6 +47,9 @@ def _build_initial_prompt() -> str | None:
 
 
 def transcribe(audio: np.ndarray, sample_rate: int, language: str | None = None) -> str:
+    from .. import config
+    from ..vocab_correct import correct_vocabulary
+
     model = _load()
     whisper_language = _LANGUAGE_MAP.get(language, language)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
@@ -59,4 +62,13 @@ def transcribe(audio: np.ndarray, sample_rate: int, language: str | None = None)
             # silence/noise segments -- off by default, worth having on here.
             hallucination_silence_threshold=2.0,
         )
-    return getattr(result, "text", str(result)).strip()
+    text = getattr(result, "text", str(result)).strip()
+
+    vocabulary = config.load().get("stt_vocabulary") or []
+    if vocabulary:
+        # initial_prompt alone is a soft nudge, not a guarantee -- especially
+        # for made-up/unusual names -- so also catch near-misses (e.g.
+        # "bido app" heard for "bedouapp") and swap in the exact spelling.
+        text = correct_vocabulary(text, vocabulary)
+
+    return text

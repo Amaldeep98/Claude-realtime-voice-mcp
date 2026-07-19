@@ -85,10 +85,13 @@ retyping anything.
   [Configuration](#configuration)), persisted to
   `~/.claude-voice-mcp/config.json` (or a project-local `.voice-mcp.json`).
 - **`vocabulary()`** / **`/vocab`** — teach Whisper words it mishears (app
-  names, jargon, rare terms). Words you add are fed to it as an
-  `initial_prompt` on every transcription, a standard Whisper technique for
-  biasing recognition toward specific vocabulary — not a guarantee, but it
-  measurably helps with names and jargon it otherwise guesses wrong.
+  names, jargon, rare terms), two layers deep: words are fed to it as an
+  `initial_prompt` on every transcription (a standard Whisper biasing
+  technique), and a fuzzy-correction pass (`vocab_correct.py`) catches
+  near-misses the prompt alone didn't fix (e.g. "bido app" heard for
+  "bedouapp") and swaps in the exact taught spelling. Neither layer is a hard
+  guarantee, but together they measurably help with made-up names and jargon
+  Whisper otherwise guesses wrong.
 - **Hallucination guard** (`stt_guard.py`) — Whisper occasionally hallucinates
   a repeating phrase from silence/noise (a known failure mode). Detected and
   trimmed automatically before it reaches the conversation.
@@ -232,6 +235,7 @@ voice_mcp/
   sanitize.py       # strip markdown/code/urls/paths before any TTS call
   summarizer.py     # turn a raw assistant turn into a short spoken summary
   stt_guard.py      # detect/trim Whisper hallucination (repeat loops) on noise/silence
+  vocab_correct.py  # fuzzy-correct near-misses of taught vocabulary words (see /vocab)
   stt/              # whisper_backend.py (default), voxtral_backend.py (opt-in)
   tts/              # kokoro_backend.py (default), elevenlabs_backend.py (optional)
   tools.py          # tool implementations shared by server.py, the daemon, and the hook's fallback
