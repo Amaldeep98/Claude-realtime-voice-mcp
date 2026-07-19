@@ -121,9 +121,10 @@ retyping anything.
    newer Pythons), syncs the environment, and pre-downloads the default
    models (~2-3GB): Kokoro-82M (TTS) and Whisper large-v3-turbo (STT).
 
-3. **Register the Stop hook** — this is what makes auto-speak and hands-free
-   work. Add to `.claude/settings.json`, replacing both paths with your
-   absolute clone path and `uv`'s absolute path (`which uv`):
+3. **The Stop hook is already configured** — this repo ships its own
+   `.claude/settings.json` with the hook wired up using Claude Code's
+   `${CLAUDE_PROJECT_DIR}` placeholder, which resolves to wherever *you*
+   cloned this repo, so nothing needs editing:
 
    ```json
    {
@@ -133,7 +134,7 @@ retyping anything.
            "hooks": [
              {
                "type": "command",
-               "command": "/absolute/path/to/uv --project /absolute/path/to/claude-voice-mcp run python /absolute/path/to/claude-voice-mcp/hooks/speak_on_stop.py",
+               "command": "uv --project ${CLAUDE_PROJECT_DIR} run python ${CLAUDE_PROJECT_DIR}/hooks/speak_on_stop.py",
                "timeout": 120
              }
            ]
@@ -143,23 +144,21 @@ retyping anything.
    }
    ```
 
-   Use **absolute paths for both `uv` and the script itself** — `--project`
-   only tells `uv` which virtualenv to use, it does *not* change the working
-   directory, so a relative `hooks/speak_on_stop.py` resolves against
-   whatever directory Claude Code happens to be in when the hook fires (which
-   is wrong for every project except this one). This matters even more once
-   the hook is registered globally (see [Scope](#scope-project-only-vs-available-everywhere))
-   since it then needs to fire correctly from *any* project directory. The
-   120s timeout matters too: the hook speaks
-   *and then listens* in hands-free mode, which can legitimately take over a
-   minute — a shorter timeout silently kills it mid-listen with no error
-   shown.
+   The 120s timeout matters: the hook speaks *and then listens* in
+   hands-free mode, which can legitimately take over a minute — a shorter
+   timeout silently kills it mid-listen with no error shown. If you start
+   Claude Code fresh from a directory that already has this file (i.e. you
+   `cd`'d into the clone before launching `claude`), it's picked up
+   automatically; if you were already mid-session when the clone appeared,
+   run `/hooks` once to reload.
 
-4. If `.claude/settings.json` didn't already exist when your Claude Code
-   session started, run `/hooks` once (or restart) so the new file gets
-   picked up.
+   `${CLAUDE_PROJECT_DIR}` only resolves correctly for *this* project,
+   though — if you register the hook globally instead (see
+   [Scope](#scope-project-only-vs-available-everywhere) below), it needs a
+   real absolute path, since a global hook fires from inside whatever
+   project you're currently in, not from this one.
 
-5. Register the MCP server so Claude Code can see the `listen`/`speak`/etc.
+4. Register the MCP server so Claude Code can see the `listen`/`speak`/etc.
    tools — see [Scope](#scope-project-only-vs-available-everywhere) below for
    project-only vs. everywhere.
 

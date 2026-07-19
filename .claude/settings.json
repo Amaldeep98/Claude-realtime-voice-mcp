@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/amaldeep/.local/bin/uv --project /Users/amaldeep/Documents/Amal/claude-voice-mcp run python /Users/amaldeep/Documents/Amal/claude-voice-mcp/hooks/speak_on_stop.py",
+            "command": "uv --project ${CLAUDE_PROJECT_DIR} run python ${CLAUDE_PROJECT_DIR}/hooks/speak_on_stop.py",
             "timeout": 120
           }
         ]
