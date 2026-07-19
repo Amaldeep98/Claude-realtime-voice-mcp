@@ -95,6 +95,12 @@ retyping anything.
 - **Hallucination guard** (`stt_guard.py`) — Whisper occasionally hallucinates
   a repeating phrase from silence/noise (a known failure mode). Detected and
   trimmed automatically before it reaches the conversation.
+- **Echo guard** (`stt_guard.is_echo_of`) — in hands-free mode, the mic can
+  pick up Claude's own TTS reply through the speakers and transcribe it back
+  as if it were new user input, which without a check would let Claude reply
+  to its own echo indefinitely. The hook compares what was just spoken
+  against what the mic just heard and silently discards a match; a short
+  settle delay before re-listening reduces how often this happens at all.
 - **Warm-model daemon** — the Stop hook is a fresh process every turn; without
   this it would reload Kokoro/Whisper from scratch each time (5+ seconds).
   `server.py` keeps a background daemon with both models warm so the hook

@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from voice_mcp import config, ipc_client, summarizer  # noqa: E402
-from voice_mcp.stt_guard import looks_like_hallucinated_repeat, strip_hallucinated_tail  # noqa: E402
+from voice_mcp.stt_guard import is_echo_of, looks_like_hallucinated_repeat, strip_hallucinated_tail  # noqa: E402
 
 DEBUG_LOG_PATH = config.USER_CONFIG_DIR / "hook_debug.log"
 
@@ -130,6 +130,7 @@ def main() -> None:
     cfg = config.load()
     _log(f"--- stop hook fired: auto_speak={cfg['auto_speak']} hands_free={cfg['hands_free']} ---")
 
+    spoken_text = None
     if cfg["auto_speak"] and cfg["auto_speak_verbosity"] != "off" and not config.is_listen_locked():
         raw_text = payload.get("last_assistant_message") or ""
         text = summarizer.build_spoken_summary(
@@ -139,12 +140,19 @@ def main() -> None:
             try:
                 _speak(cfg, text)
                 _log(f"spoke: {text!r}")
+                spoken_text = text
             except Exception as exc:
                 _log(f"speak failed: {exc}")
 
     if not cfg["hands_free"] or config.is_listen_locked():
         _log("hands_free off or listen-locked, done")
         return
+
+    if spoken_text:
+        # let any room echo/reverb from our own speaker output decay before
+        # opening the mic again -- reduces (but doesn't replace) the need for
+        # the is_echo_of() check above
+        time.sleep(0.6)
 
     try:
         heard, speech_detected = _listen_once(cfg)
@@ -163,6 +171,10 @@ def main() -> None:
     if not heard:
         _log("speech detected but transcription was empty, leaving hands_free on")
         return  # speech detected but nothing transcribed; don't tear down the session for a blip
+
+    if spoken_text and is_echo_of(heard, spoken_text):
+        _log(f"discarding acoustic echo of our own TTS output, leaving hands_free on: {heard!r}")
+        return  # the mic picked up our own speaker output, not new user speech
 
     trimmed = strip_hallucinated_tail(heard)
     if trimmed != heard:

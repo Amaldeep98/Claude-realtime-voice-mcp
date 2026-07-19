@@ -28,6 +28,16 @@ def _word_overlap(a: str, b: str) -> float:
     return len(wa & wb) / max(len(wa), len(wb))
 
 
+def is_echo_of(heard: str, spoken: str, *, min_overlap: float = 0.55) -> bool:
+    """True if `heard` looks like it's substantially the same text as
+    `spoken` -- i.e. the mic likely picked up Claude's own TTS output through
+    the speakers rather than genuine new speech (acoustic feedback in
+    hands-free mode, where listening resumes right after speaking)."""
+    if not heard or not spoken:
+        return False
+    return _word_overlap(heard, spoken) >= min_overlap
+
+
 def _strip_exact_repeat_tail(text: str, *, min_repeats: int, max_phrase_words: int) -> str:
     """Catches identical phrases repeating with no sentence punctuation
     (e.g. "...that's one that's one that's one...")."""
