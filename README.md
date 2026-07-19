@@ -18,6 +18,30 @@ and speaks a short summary of what happened. Everything about this — on/off,
 verbosity, voice, backend — is tunable live via the `voice_config` MCP tool
 or a config file, no restart required.
 
+## Two ways to use this
+
+**Option 1: Claude Code's native `/voice` dictation + `/talkback` for replies.**
+Claude Code has its own built-in push-to-talk dictation (tap `Space` in the
+chat box) that types your speech into the input box for you -- that's a
+separate system from this project, not something we built. Use it for input,
+and run `/talkback on` so this MCP speaks Claude's replies back via Kokoro.
+In this mode our mic/STT pipeline (`listen`, `/talk`) is never used at all --
+only the TTS half. Simplest option if you're happy with Claude Code's own
+dictation and just want spoken replies on top of it.
+
+**Option 2: `/talk` for a fully local, hands-free real-time conversation.**
+`/talk` (or `/talk on`) arms `hands_free` mode and starts recording through
+our own local pipeline (Whisper STT in, Kokoro TTS out): it records until you
+stop talking, transcribes it, Claude responds, the Stop hook speaks the reply,
+then it automatically starts recording again -- a continuous back-and-forth
+loop with no typing and no dictation button, until you say "stop listening",
+go quiet past `hands_free_idle_seconds`, or run `/talk off`. This is the
+"press play and just talk" option, entirely local end-to-end.
+
+You can also mix and match (e.g. native dictation most of the time, `/talk`
+when you want your hands off the keyboard) -- `/talk` and `/talkback` are
+independent toggles, covered in **Features** below.
+
 ## Features
 
 - **Hands-free conversation** — `/talk on` (or just `/talk`) arms `hands_free`
