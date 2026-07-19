@@ -101,6 +101,13 @@ retyping anything.
   to its own echo indefinitely. The hook compares what was just spoken
   against what the mic just heard and silently discards a match; a short
   settle delay before re-listening reduces how often this happens at all.
+- **Duplicate-hook guard** — if the Stop hook ends up registered in more than
+  one scope at once (e.g. both this project's `.claude/settings.json` and a
+  global `~/.claude/settings.json`, which both fire when working *inside*
+  this repo), Claude Code runs every registered copy, and Claude would
+  audibly speak the same reply twice. The hook atomically claims each turn's
+  `prompt_id` so only the first invocation for a given turn does anything;
+  every duplicate silently no-ops.
 - **Warm-model daemon** — the Stop hook is a fresh process every turn; without
   this it would reload Kokoro/Whisper from scratch each time (5+ seconds).
   `server.py` keeps a background daemon with both models warm so the hook

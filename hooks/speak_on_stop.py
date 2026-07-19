@@ -30,6 +30,7 @@ swallowed so a broken mic or model never surfaces as a stuck conversation.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -40,6 +41,12 @@ from voice_mcp import config, ipc_client, summarizer  # noqa: E402
 from voice_mcp.stt_guard import is_echo_of, looks_like_hallucinated_repeat, strip_hallucinated_tail  # noqa: E402
 
 DEBUG_LOG_PATH = config.USER_CONFIG_DIR / "hook_debug.log"
+# Claiming a prompt_id atomically means only one hook invocation for a given
+# turn ever proceeds, even if this script is registered in multiple scopes
+# at once (e.g. both a project's .claude/settings.json and the global
+# ~/.claude/settings.json fire for the same Stop event when working inside
+# that project) -- otherwise Claude audibly speaks the same reply twice.
+CLAIMS_DIR = config.USER_CONFIG_DIR / "prompt_claims"
 
 
 def _log(msg: str) -> None:
@@ -48,6 +55,33 @@ def _log(msg: str) -> None:
         with DEBUG_LOG_PATH.open("a") as f:
             f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
     except Exception:
+        pass
+
+
+def _claim_prompt(prompt_id: str | None) -> bool:
+    """True if this invocation is the first (and only) one to claim
+    `prompt_id` -- callers should no-op entirely if this returns False."""
+    if not prompt_id:
+        return True  # older Claude Code without prompt_id -- can't dedup, proceed as before
+    try:
+        CLAIMS_DIR.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(CLAIMS_DIR / f"{prompt_id}.claim"), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+    except FileExistsError:
+        return False
+    except OSError:
+        return True  # claim-tracking itself failed -- don't let that block real work
+    _cleanup_old_claims()
+    return True
+
+
+def _cleanup_old_claims(max_age_seconds: float = 3600) -> None:
+    try:
+        cutoff = time.time() - max_age_seconds
+        for path in CLAIMS_DIR.glob("*.claim"):
+            if path.stat().st_mtime < cutoff:
+                path.unlink(missing_ok=True)
+    except OSError:
         pass
 
 
@@ -125,6 +159,11 @@ def main() -> None:
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError) as exc:
         _log(f"failed to parse stdin JSON: {exc}")
+        return
+
+    prompt_id = payload.get("prompt_id")
+    if not _claim_prompt(prompt_id):
+        _log(f"duplicate hook invocation for prompt_id={prompt_id!r} (multiple hook scopes registered), skipping")
         return
 
     cfg = config.load()
