@@ -133,7 +133,7 @@ retyping anything.
            "hooks": [
              {
                "type": "command",
-               "command": "/absolute/path/to/uv --project /absolute/path/to/claude-voice-mcp run python hooks/speak_on_stop.py",
+               "command": "/absolute/path/to/uv --project /absolute/path/to/claude-voice-mcp run python /absolute/path/to/claude-voice-mcp/hooks/speak_on_stop.py",
                "timeout": 120
              }
            ]
@@ -143,8 +143,14 @@ retyping anything.
    }
    ```
 
-   Use the **absolute path to `uv`**, not just `uv` — hooks don't necessarily
-   inherit your shell's `PATH`. The 120s timeout matters: the hook speaks
+   Use **absolute paths for both `uv` and the script itself** — `--project`
+   only tells `uv` which virtualenv to use, it does *not* change the working
+   directory, so a relative `hooks/speak_on_stop.py` resolves against
+   whatever directory Claude Code happens to be in when the hook fires (which
+   is wrong for every project except this one). This matters even more once
+   the hook is registered globally (see [Scope](#scope-project-only-vs-available-everywhere))
+   since it then needs to fire correctly from *any* project directory. The
+   120s timeout matters too: the hook speaks
    *and then listens* in hands-free mode, which can legitimately take over a
    minute — a shorter timeout silently kills it mid-listen with no error
    shown.
