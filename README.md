@@ -38,6 +38,13 @@ loop with no typing and no dictation button, until you say "stop listening",
 go quiet past `hands_free_idle_seconds`, or run `/talk off`. This is the
 "press play and just talk" option, entirely local end-to-end.
 
+`/talk` only arms **listening** (`hands_free`) -- it does not turn spoken
+replies on by itself. `auto_speak` (spoken replies) is on by default out of
+the box, so a fresh install gets both automatically, but if you've ever
+turned `auto_speak` off (via `/talkback off`), running `/talk` alone won't
+bring it back -- run `/talkback on` too, or you'll hear yourself transcribed
+and continued but never hear Claude's replies spoken.
+
 You can also mix and match (e.g. native dictation most of the time, `/talk`
 when you want your hands off the keyboard) -- `/talk` and `/talkback` are
 independent toggles, covered in **Features** below.
