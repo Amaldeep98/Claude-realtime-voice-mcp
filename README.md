@@ -1,12 +1,63 @@
 # claude-voice-mcp
 
 Bidirectional local voice for Claude Code on Apple Silicon, built on
-[mlx-audio](https://github.com/Blaizzy/mlx-audio). Say **"listen to me"** or
-run `/talk` and Claude hears you; Claude speaks its responses back
-**automatically**, guaranteed by a Claude Code Stop hook rather than by
-Claude remembering to call a tool.
+[mlx-audio](https://github.com/Blaizzy/mlx-audio). Talk to Claude, and Claude
+talks back — **automatically**, guaranteed by a Claude Code Stop hook rather
+than by Claude remembering to call a `speak()` tool. Runs 100% locally and
+free by default (Whisper + Kokoro), with an optional ElevenLabs backend for
+more realistic voices.
 
-## Why this instead of just calling a `speak()` tool?
+**Contents:** [Two ways to use this](#two-ways-to-use-this) ·
+[Commands](#commands) · [Why a Stop hook](#why-a-stop-hook-instead-of-a-speak-tool) ·
+[Setup](#setup-on-a-new-machine) · [Scope](#scope-project-only-vs-available-everywhere) ·
+[Configuration](#configuration) · [Architecture](#architecture)
+
+## Two ways to use this
+
+**Option 1 — Claude Code's native dictation + `/talkback` for replies.**
+Claude Code has its own built-in push-to-talk dictation (tap `Space` in the
+chat box) that types your speech into the input box — that's a separate
+system from this project, not something we built. Use it for input, and run
+`/talkback on` so this MCP speaks Claude's replies back via Kokoro. Our own
+mic/STT pipeline (`listen`, `/talk`) is never used in this mode — only the TTS
+half. Simplest option if you're happy with Claude Code's own dictation and
+just want spoken replies on top of it.
+
+**Option 2 — `/talk` for a fully local, hands-free conversation.**
+`/talk` arms `hands_free` mode and starts recording through our own local
+pipeline (Whisper in, Kokoro out): it records until you stop talking,
+transcribes it, Claude responds, the Stop hook speaks the reply, then it
+automatically starts recording again — a continuous loop with no typing and
+no dictation button, until you say "stop listening", go quiet past
+`hands_free_idle_seconds`, or run `/talk off`. Entirely local end-to-end.
+
+> `/talk` only arms **listening**. If you've ever turned spoken replies off
+> with `/talkback off`, `/talk` alone won't bring them back — run
+> `/talkback on` too, or you'll be transcribed and continued but never hear a
+> reply. Both default to on, so a fresh install gets the full experience
+> automatically.
+
+The two options mix freely — e.g. native dictation most of the time, `/talk`
+when you want your hands off the keyboard.
+
+## Commands
+
+| Command | Does |
+|---|---|
+| `/talk` | Toggles `hands_free` (arms it and starts listening if off; disarms if on) |
+| `/talk on` | Arms `hands_free` and starts listening, regardless of current state |
+| `/talk off` | Disarms `hands_free`, regardless of current state — the quick way back after it auto-disarms |
+| `/talk <seconds>` | One-shot timed recording; doesn't touch `hands_free` either way |
+| `/talkback` | Toggles `auto_speak` (spoken replies) on/off |
+| `/talkback on` / `off` | Sets `auto_speak` explicitly |
+| `/talkback full` | Speaks the entire reply, no truncation |
+| `/talkback brief` | Speaks a short summary only, truncated to `brief_max_chars` (default, 320 chars) |
+| `/voice` | Lists all 54 voices, grouped by language |
+| `/voice <id>` | Switches to that voice (e.g. `/voice af_bella`) |
+
+Say "stop listening" any time to end hands-free mode by voice instead of typing `/talk off`.
+
+## Why a Stop hook instead of a `speak()` tool?
 
 Tool-call-based auto-speak (the common approach) only works if the model
 chooses to call the tool after every reply — it can forget, get distracted,
@@ -14,74 +65,29 @@ or skip it under load. This project instead wires a **Stop hook**
 (`hooks/speak_on_stop.py`) that Claude Code invokes after *every* turn,
 independent of the MCP server and independent of Claude's cooperation. It
 reads Claude's own final message for the turn, strips code/markdown/paths,
-and speaks a short summary of what happened. Everything about this — on/off,
-verbosity, voice, backend — is tunable live via the `voice_config` MCP tool
-or a config file, no restart required.
+and speaks it (a short summary by default, or the whole thing with
+`/talkback full`). Everything about this is tunable live via the
+`voice_config` MCP tool or a config file, no restart required.
 
-## Two ways to use this
+The same hook is also what makes hands-free mode work: when armed, it listens
+again after speaking and feeds what you say back in via its `decision:
+"block"` output, so Claude Code continues the conversation without you
+retyping anything.
 
-**Option 1: Claude Code's native `/voice` dictation + `/talkback` for replies.**
-Claude Code has its own built-in push-to-talk dictation (tap `Space` in the
-chat box) that types your speech into the input box for you -- that's a
-separate system from this project, not something we built. Use it for input,
-and run `/talkback on` so this MCP speaks Claude's replies back via Kokoro.
-In this mode our mic/STT pipeline (`listen`, `/talk`) is never used at all --
-only the TTS half. Simplest option if you're happy with Claude Code's own
-dictation and just want spoken replies on top of it.
+## Other capabilities
 
-**Option 2: `/talk` for a fully local, hands-free real-time conversation.**
-`/talk` (or `/talk on`) arms `hands_free` mode and starts recording through
-our own local pipeline (Whisper STT in, Kokoro TTS out): it records until you
-stop talking, transcribes it, Claude responds, the Stop hook speaks the reply,
-then it automatically starts recording again -- a continuous back-and-forth
-loop with no typing and no dictation button, until you say "stop listening",
-go quiet past `hands_free_idle_seconds`, or run `/talk off`. This is the
-"press play and just talk" option, entirely local end-to-end.
-
-`/talk` only arms **listening** (`hands_free`) -- it does not turn spoken
-replies on by itself. `auto_speak` (spoken replies) is on by default out of
-the box, so a fresh install gets both automatically, but if you've ever
-turned `auto_speak` off (via `/talkback off`), running `/talk` alone won't
-bring it back -- run `/talkback on` too, or you'll hear yourself transcribed
-and continued but never hear Claude's replies spoken.
-
-You can also mix and match (e.g. native dictation most of the time, `/talk`
-when you want your hands off the keyboard) -- `/talk` and `/talkback` are
-independent toggles, covered in **Features** below.
-
-## Features
-
-- **Hands-free conversation** — `/talk on` (or just `/talk`) arms `hands_free`
-  mode and starts listening; after Claude speaks, the Stop hook listens again
-  automatically and feeds what you say back in as the next turn (via the
-  hook's `decision: "block"` output), so you don't retype `/talk` every time.
-  Say "stop listening", go quiet for `hands_free_idle_seconds` (default 90s),
-  or run `/talk off` to end it explicitly -- handy after it's auto-disarmed
-  and you want to re-arm it without checking current state. `/talk <seconds>`
-  does a one-shot timed recording without touching hands-free at all.
-- **`/talkback on` / `/talkback off`** (bare `/talkback` toggles) — controls
-  spoken replies (`auto_speak`) independent of `/talk`'s listening toggle,
-  e.g. for using native dictation as input with
-  only our TTS for output.
-- **`/talkback full` / `/talkback brief`** — how much of each reply gets
-  spoken: `brief` (default) speaks a short summary truncated to
-  `brief_max_chars` (320 by default); `full` speaks the whole reply. If
-  replies are getting cut off mid-thought, switch to `full`.
-- **`listen()`** — mic capture, gated by voice-activity detection (webrtcvad
-  + energy fallback), stops after a configurable trailing-silence window
-  (`vad_silence_ms`, default 5s, generous so mid-sentence pauses don't cut
-  you off).
-- **`speak()`** — local TTS via Kokoro-82M: 54 voices across 9 languages
-  (American & British English, Spanish, French, Hindi, Italian, Japanese,
-  Brazilian Portuguese, Mandarin).
 - **`stop_speaking()`** — barge-in: interrupt playback mid-sentence.
-- **`list_voices()`** / **`/voice`** — browse or switch voices.
-- **`voice_config()`** — get/set every setting live from Claude's console,
-  persisted to `~/.claude-voice-mcp/config.json` (or a project-local
-  `.voice-mcp.json`).
-- **Automatic spoken summaries** after every turn via the Stop hook (see above).
-- **100% local and free by default** — Whisper large-v3-turbo for STT,
-  Kokoro-82M for TTS, both open-weight models pulled once from Hugging Face.
+- **`list_voices()`** — same as `/voice`, callable directly.
+- **`voice_config()`** — get/set any setting live from Claude's console (see
+  [Configuration](#configuration)), persisted to
+  `~/.claude-voice-mcp/config.json` (or a project-local `.voice-mcp.json`).
+- **Hallucination guard** (`stt_guard.py`) — Whisper occasionally hallucinates
+  a repeating phrase from silence/noise (a known failure mode). Detected and
+  trimmed automatically before it reaches the conversation.
+- **Warm-model daemon** — the Stop hook is a fresh process every turn; without
+  this it would reload Kokoro/Whisper from scratch each time (5+ seconds).
+  `server.py` keeps a background daemon with both models warm so the hook
+  stays fast.
 - **Optional ElevenLabs backend** for more realistic voices: set
   `ELEVENLABS_API_KEY` and `voice_config set tts_backend elevenlabs`. If the
   key is missing or a call fails for any reason, it **silently falls back**
@@ -94,7 +100,7 @@ independent toggles, covered in **Features** below.
 - Working microphone and speakers
 - `ffmpeg` (optional, only needed for MP3/FLAC handling)
 
-## Setting up on a new machine, from scratch
+## Setup on a new machine
 
 1. **Clone this repo** somewhere permanent (its path gets baked into config
    below, so pick a final location, e.g. `~/tools/claude-voice-mcp`):
@@ -110,15 +116,14 @@ independent toggles, covered in **Features** below.
    ./scripts/setup.sh
    ```
 
-   This installs `uv` if missing (via `~/.local/bin`), pins Python 3.12 (spaCy,
-   one of Kokoro's text-processing dependencies, doesn't yet have wheels for
-   newer Pythons), syncs the environment, and pre-downloads the default models
-   (~2-3GB): Kokoro-82M (TTS) and Whisper large-v3-turbo (STT).
+   Installs `uv` if missing (via `~/.local/bin`), pins Python 3.12 (spaCy, one
+   of Kokoro's text-processing dependencies, doesn't yet have wheels for
+   newer Pythons), syncs the environment, and pre-downloads the default
+   models (~2-3GB): Kokoro-82M (TTS) and Whisper large-v3-turbo (STT).
 
-3. **Register the Stop hook** (this is what makes auto-speak and hands-free
-   work) by adding this to `.claude/settings.json` — replace both path
-   occurrences with your absolute clone path and `uv`'s absolute path
-   (`which uv`):
+3. **Register the Stop hook** — this is what makes auto-speak and hands-free
+   work. Add to `.claude/settings.json`, replacing both paths with your
+   absolute clone path and `uv`'s absolute path (`which uv`):
 
    ```json
    {
@@ -138,18 +143,19 @@ independent toggles, covered in **Features** below.
    }
    ```
 
-   Use the **absolute path to `uv`** (not just `uv`) since hooks don't
-   necessarily inherit your shell's `PATH`. The 120s timeout matters: the hook
-   speaks *and then listens* in hands-free mode, which can legitimately take
-   over a minute — a shorter timeout will silently kill it mid-listen with no
-   error shown (this bit us during development; see git history if curious).
+   Use the **absolute path to `uv`**, not just `uv` — hooks don't necessarily
+   inherit your shell's `PATH`. The 120s timeout matters: the hook speaks
+   *and then listens* in hands-free mode, which can legitimately take over a
+   minute — a shorter timeout silently kills it mid-listen with no error
+   shown.
 
-4. If `.claude/settings.json` didn't already exist in that project when your
-   Claude Code session started, run `/hooks` once (or restart) so the new
-   file gets picked up.
+4. If `.claude/settings.json` didn't already exist when your Claude Code
+   session started, run `/hooks` once (or restart) so the new file gets
+   picked up.
 
 5. Register the MCP server so Claude Code can see the `listen`/`speak`/etc.
-   tools — see **Scope** below for project-only vs. everywhere.
+   tools — see [Scope](#scope-project-only-vs-available-everywhere) below for
+   project-only vs. everywhere.
 
 ## Scope: project-only vs. available everywhere
 
@@ -159,19 +165,14 @@ an "everywhere" option:
 | Piece | Default (project-only) | Make it global |
 |---|---|---|
 | **Voice settings** (voice, speed, auto_speak, hands_free, ...) | Already global: `~/.claude-voice-mcp/config.json` | N/A — already global. Add a `.voice-mcp.json` in a specific project's directory if you want *that project* to override something. |
-| **MCP server** (the tools themselves) | This repo's `.mcp.json` — only auto-discovered when Claude Code's cwd is this directory | `claude mcp add voice --scope user -- /absolute/path/to/uv --directory /absolute/path/to/claude-voice-mcp run server.py` — registers it for every project for your user |
-| **Slash commands** (`/talk`, `/voice`, `/talkback`) | This repo's `.claude/commands/*.md` — only available when working in this directory | Copy the three `.md` files into `~/.claude/commands/` instead (create the directory if it doesn't exist) |
+| **MCP server** (the tools themselves) | This repo's `.mcp.json` — only auto-discovered when Claude Code's cwd is this directory | `claude mcp add voice --scope user -- /absolute/path/to/uv --directory /absolute/path/to/claude-voice-mcp run server.py` |
+| **Slash commands** (`/talk`, `/voice`, `/talkback`) | This repo's `.claude/commands/*.md` — only available when working in this directory | Copy the three `.md` files into `~/.claude/commands/` (create it if it doesn't exist) |
 | **Stop hook** (auto-speak / hands-free) | This repo's `.claude/settings.json` | Put the same `hooks.Stop` entry in `~/.claude/settings.json` instead |
 
-If you want the whole thing available in every project without any
-per-project setup, do the "global" option for all three of MCP server, slash
-commands, and Stop hook. If you'd rather opt in per-project, keep the default
-and just add `.mcp.json` + `.claude/commands/` + `.claude/settings.json`
-entries (matching this repo's) to each project you want it in.
-
-## Using it in another project (project-scoped, the default)
-
-Add to that project's `.mcp.json`:
+For everywhere-by-default, do the "global" option for all three of MCP
+server, slash commands, and Stop hook. To opt in per-project instead, add
+matching `.mcp.json` + `.claude/commands/` + `.claude/settings.json` entries
+to each project you want it in — e.g. for another project's `.mcp.json`:
 
 ```json
 {
@@ -185,24 +186,28 @@ Add to that project's `.mcp.json`:
 }
 ```
 
-Then say "listen to me", or use `/talk` and `/voice` (copy those command
-files in too, or use the global option above).
-
 ## Configuration
 
-All settings live in `~/.claude-voice-mcp/config.json` (see
-`voice_mcp/config.py` for the full schema/defaults) and can be changed live
-via the `voice_config` MCP tool, e.g.:
+All settings live in `~/.claude-voice-mcp/config.json` and can be changed
+live via the `voice_config` MCP tool (`voice_config(action="set", key="...",
+value="...")`) — no restart required.
 
-- `voice_config(action="set", key="auto_speak", value="false")` — disable auto-speak entirely
-- `voice_config(action="set", key="auto_speak_verbosity", value="full")` — speak the whole reply, not just a brief summary
-- `voice_config(action="set", key="tts_backend", value="elevenlabs")` — use ElevenLabs when `ELEVENLABS_API_KEY` is set
-- `voice_config(action="set", key="stt_backend", value="voxtral")` — switch to Voxtral Realtime for lower-latency streaming STT
-
-## Swapping models
-
-- STT: `whisper` (default) or `voxtral` (Voxtral Realtime, matches the lower-latency streaming feel of similar projects, heavier download).
-- TTS: `kokoro` (default, local) or `elevenlabs` (cloud, optional, silent fallback to kokoro).
+| Key | Default | Meaning |
+|---|---|---|
+| `auto_speak` | `true` | Speak replies automatically via the Stop hook |
+| `auto_speak_verbosity` | `"brief"` | `off` / `brief` (short summary) / `full` (whole reply) — see `/talkback full`/`brief` |
+| `brief_max_chars` | `320` | Character cap for `"brief"` verbosity |
+| `hands_free` | `false` | Whether the Stop hook re-listens after speaking (armed by `/talk`) |
+| `hands_free_idle_seconds` | `90` | How long hands-free waits for you to start talking before giving up |
+| `vad_silence_ms` | `5000` | Trailing silence needed to end a recording once you've started talking |
+| `tts_backend` | `"kokoro"` | `kokoro` (local) or `elevenlabs` (cloud, needs `ELEVENLABS_API_KEY`, silently falls back to kokoro) |
+| `voice` | `"af_heart"` | Kokoro voice ID — see `/voice` for the full list |
+| `elevenlabs_voice_id` | `null` | Voice ID to use when `tts_backend` is `elevenlabs` |
+| `speed` | `1.0` | Playback speed multiplier |
+| `stt_backend` | `"whisper"` | `whisper` (default) or `voxtral` (lower-latency streaming, heavier download) |
+| `language` | `"a"` | Language code (`a`=American English, `b`=British, `e`=Spanish, `f`=French, `h`=Hindi, `i`=Italian, `j`=Japanese, `p`=Brazilian Portuguese, `z`=Mandarin) |
+| `audio_cues` | `true` | Chime when listening starts/stops |
+| `notifications` | `true` | macOS banner notifications for listening/speaking state |
 
 ## Architecture
 
